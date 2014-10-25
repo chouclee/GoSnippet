@@ -47,9 +47,7 @@ package main
 
 import (
 	"bufio"
-	//"flag"
 	"fmt"
-	//"io"
 	"math/rand"
 	"os"
 	"strings"
@@ -71,14 +69,17 @@ func (p Prefix) Shift(word string) {
 	p[len(p)-1] = word
 }
 
-
+// Chain contains a map ("chain") of prefixes to a map of suffixes to
+// frequencies.
+// A prefix is a string of prefixLen words joined with spaces.
+// A suffix is a single word. A prefix can have multiple suffixes.
 type Chain struct {
 	chain     map[string]map[string]int
 	prefixLen int
 }
 
 
-// Chain contains a map ("chain") of prefixes to a list of suffixes.
+// ChainForGenerate contains a map ("chain") of prefixes to a list of suffixes.
 // A prefix is a string of prefixLen words joined with spaces.
 // A suffix is a single word. A prefix can have multiple suffixes.
 type ChainForGenerate struct {
@@ -96,22 +97,6 @@ func NewChain(prefixLen int) *Chain {
 func NewChianForGenerate(prefixLen int) *ChainForGenerate {
 	return &ChainForGenerate{make(map[string][]string), prefixLen}
 }
-
-// Build reads text from the provided Reader and
-// parses it into prefixes and suffixes that are stored in Chain.
-/*func (c *Chain) Build(r io.Reader) {
-	br := bufio.NewReader(r)
-	p := make(Prefix, c.prefixLen)
-	for {
-		var s string
-		if _, err := fmt.Fscan(br, &s); err != nil {
-			break
-		}
-		key := p.String()
-		c.chain[key] = append(c.chain[key], s)
-		p.Shift(s)
-	}
-}*/
 
 // Generate returns a string of at most n words generated from Chain.
 func (c *ChainForGenerate) Generate(n int) string {
@@ -141,7 +126,7 @@ func (c *Chain) Read(filePath string) {
 
 	br := bufio.NewReader(r)
 	p := make(Prefix, c.prefixLen)
-	for i, _ := range p {
+	for i, _ := range p {		// replace all empty string with '\"\"''
 		p[i] = "\"\""
 	}
 	for {
@@ -185,7 +170,6 @@ func ReadModel(modelfile string) *ChainForGenerate {
 	var  (
 		prefixLen int
 		p Prefix
-		// string
 	)
 
 	r, err := os.Open(modelfile) //open model file
@@ -209,11 +193,10 @@ func ReadModel(modelfile string) *ChainForGenerate {
 	c := NewChianForGenerate(prefixLen) // Initialize a new Chain.
 
 	for scanner.Scan() {
-		line := scanner.Text()
-		splited := strings.Fields(line)
+		line := scanner.Text()			// read line
+		splited := strings.Fields(line)	// split the line, get a slice of words
 
-
-		p = splited[0:prefixLen]
+		p = splited[0:prefixLen]		// get term
 		// replace all \"\" with empty string
 		for i := 0; i < len(p); i++ {
 			if p[i] == "\"\"" {
@@ -223,16 +206,18 @@ func ReadModel(modelfile string) *ChainForGenerate {
 		key := p.String()
 		
 		for i := prefixLen; i < len(splited); i += 2 {
+			// get term frequency
 			frequency, err := strconv.Atoi(splited[i+1])
 			if err != nil {
 				return nil
 			}
-			term := splited[i]
+
+			term := splited[i]	// get term
+			// add frequency times of term into slice
 			for j := 0; j < frequency; j++ {
 				c.chain[key] = append(c.chain[key], term)
 			}
 		}
-		//fmt.Println(c.chain[key])
 	}
 	return c
 }
@@ -243,7 +228,7 @@ func main() {
 		return
 	}
 	command := os.Args[1]
-	if command == "read" {
+	if command == "read" { 				// read
 		if len(os.Args) < 5 {
 			fmt.Println("Error: read command should be: mark read N" + 
 				" outfilename infile1 infile2 .... ")
@@ -265,7 +250,7 @@ func main() {
 
 		c.WriteModel(outfilename)
 
-	} else if (command == "generate") {
+	} else if (command == "generate") { // generate
 		if len(os.Args) < 4 {
 			fmt.Println("Error: generate command should be: mark generate" + 
 				" modelfile n")
@@ -275,20 +260,16 @@ func main() {
 		c := ReadModel(os.Args[2])
 
 		rand.Seed(time.Now().UnixNano()) // Seed the random number generator.
-		text := c.Generate(10) // Generate text.
+
+		numOfWords, err := strconv.Atoi(os.Args[3])
+		if err != nil {
+			fmt.Println("Error: n-4 th parameter should be an integer")
+			return
+		}
+		text := c.Generate(numOfWords) // Generate text.
 		fmt.Println(text)
 	} else {
 		fmt.Println("Error: command should be either read or generate")
 		return
 	}
-	//numWords := flag.Int("words", 100, "maximum number of words to print")
-	//prefixLen := flag.Int("prefix", 2, "prefix length in words")
-
-	//flag.Parse()                     // Parse command-line flags.
-	//rand.Seed(time.Now().UnixNano()) // Seed the random number generator.
-
-	//c := NewChain(*prefixLen)     // Initialize a new Chain.
-	//c.Build(os.Stdin)             // Build chains from standard input.
-	//text := c.Generate(*numWords) // Generate text.
-	//fmt.Println(text)             // Write text to standard output.
 }
