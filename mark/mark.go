@@ -50,10 +50,10 @@ import (
 	//"flag"
 	"fmt"
 	//"io"
-	//"math/rand"
+	"math/rand"
 	"os"
 	"strings"
-	//"time"
+	"time"
 	"strconv"
 )
 
@@ -71,17 +71,30 @@ func (p Prefix) Shift(word string) {
 	p[len(p)-1] = word
 }
 
+
+type Chain struct {
+	chain     map[string]map[string]int
+	prefixLen int
+}
+
+
 // Chain contains a map ("chain") of prefixes to a list of suffixes.
 // A prefix is a string of prefixLen words joined with spaces.
 // A suffix is a single word. A prefix can have multiple suffixes.
-type Chain struct {
-	chain     map[string]map[string]int
+type ChainForGenerate struct {
+	chain     map[string][]string
 	prefixLen int
 }
 
 // NewChain returns a new Chain with prefixes of prefixLen words.
 func NewChain(prefixLen int) *Chain {
 	return &Chain{make(map[string]map[string]int), prefixLen}
+}
+
+// NewChianForGenerate returns a new ChainForGenerate with prefixes of
+// prefixLen words.
+func NewChianForGenerate(prefixLen int) *ChainForGenerate {
+	return &ChainForGenerate{make(map[string][]string), prefixLen}
 }
 
 // Build reads text from the provided Reader and
@@ -101,7 +114,7 @@ func NewChain(prefixLen int) *Chain {
 }*/
 
 // Generate returns a string of at most n words generated from Chain.
-/*func (c *Chain) Generate(n int) string {
+func (c *ChainForGenerate) Generate(n int) string {
 	p := make(Prefix, c.prefixLen)
 	var words []string
 	for i := 0; i < n; i++ {
@@ -115,7 +128,7 @@ func NewChain(prefixLen int) *Chain {
 		p.Shift(next)
 	}
 	return strings.Join(words, " ")
-}*/
+}
 
 func (c *Chain) Read(filePath string) {
 	// open the file, return a Reader
@@ -168,33 +181,60 @@ func (c *Chain) WriteModel(outfilename string) {
 	out.Close()
 }
 
-func ReadModel(modelfile string) *Chain {
+func ReadModel(modelfile string) *ChainForGenerate {
+	var  (
+		prefixLen int
+		p Prefix
+		// string
+	)
+
 	r, err := os.Open(modelfile) //open model file
 	if err != nil {
 		fmt.Println("Error: Could not open file " + modelfile)
-		return 
+		return nil
 	}
 	defer r.Close()
 
-	br := bufio.NewReader(r)
-	p := make(Prefix, c.prefixLen)
-	for i, _ := range p {
-		p[i] = "\"\""
+	// read the prefix length
+	scanner := bufio.NewScanner(r)
+
+	if scanner.Scan() {
+		var err error
+		prefixLen, err = strconv.Atoi(scanner.Text())
+		if err != nil {
+			fmt.Println("Error: prefix length should be an integer >= 1")
+			return nil
+		}
 	}
-	for {
-		var s string
-		if _, err := fmt.Fscan(br, &s); err != nil {
-			break
+	c := NewChianForGenerate(prefixLen) // Initialize a new Chain.
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		splited := strings.Fields(line)
+
+
+		p = splited[0:prefixLen]
+		// replace all \"\" with empty string
+		for i := 0; i < len(p); i++ {
+			if p[i] == "\"\"" {
+				p[i] = ""
+			}
 		}
 		key := p.String()
-		tf, ok := c.chain[key]  // term frequency vector of a certian prefix
-		if !ok {				// if this prefix is not in the map 
-			tf = make(map[string]int) 
-			c.chain[key] = tf
+		
+		for i := prefixLen; i < len(splited); i += 2 {
+			frequency, err := strconv.Atoi(splited[i+1])
+			if err != nil {
+				return nil
+			}
+			term := splited[i]
+			for j := 0; j < frequency; j++ {
+				c.chain[key] = append(c.chain[key], term)
+			}
 		}
-		tf[s]++
-		p.Shift(s)
+		//fmt.Println(c.chain[key])
 	}
+	return c
 }
 
 func main() {
@@ -232,9 +272,11 @@ func main() {
 			return
 		}
 
+		c := ReadModel(os.Args[2])
 
-
-		return
+		rand.Seed(time.Now().UnixNano()) // Seed the random number generator.
+		text := c.Generate(10) // Generate text.
+		fmt.Println(text)
 	} else {
 		fmt.Println("Error: command should be either read or generate")
 		return
@@ -250,12 +292,3 @@ func main() {
 	//text := c.Generate(*numWords) // Generate text.
 	//fmt.Println(text)             // Write text to standard output.
 }
-
-
-//
-//
-//
-  //  var test map[[2]string]map[string]int = make(map[[2]string]map[string]int)
-  //  test[[2]string{"1","2"}] = make(map[string]int)
-  //  test[[2]string{"1","2"}]["test"] = 3
-  //  fmt.Println(test[[2]string{"1","2"}]["test"])
